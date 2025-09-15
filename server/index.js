@@ -1,21 +1,38 @@
 
 const express = require('express');
+const bodyParser = require('body-parser');
+const { loadModels, encodeFace, compareFaces } = require('./faceService');
 const cors = require('cors');
 const { Client } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const app = express();
+app.use(bodyParser.json({ limit: '10mb' }));
 const PORT = 3001;
 
+// Load models dulu sebelum API jalan
+loadModels().then(() => console.log('Face API models loaded ✅'));
+
 // Database configuration
+// const dbConfig = {
+//   host: 'localhost',
+//   port: 5432,
+//   database: 'attendance_system',
+//   user: 'postgres',
+//   password: 'testing123!@' // Change this to your PostgreSQL password
+// };
+
 const dbConfig = {
-  host: 'localhost',
-  port: 5432,
-  database: 'attendance_system',
-  user: 'postgres',
-  password: 'testing123!@' // Change this to your PostgreSQL password
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD
 };
+
+//const JWT_SECRET = process.env.JWT_SECRET;
+
 
 // Middleware
 app.use(cors());
@@ -131,6 +148,46 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Encode wajah
+app.post('/api/face/encode', async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+
+    const encoding = await encodeFace(imageBase64);
+    if (!encoding) return res.status(404).json({ error: 'No face detected' });
+
+    res.json({ encoding });
+  } catch (error) {
+    console.error('Encode error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Verifikasi wajah
+app.post('/api/face/verify', async (req, res) => {
+  try {
+    const { imageBase64, storedEncoding } = req.body;
+    if (!imageBase64 || !storedEncoding) {
+      return res.status(400).json({ error: 'Image and stored encoding required' });
+    }
+
+    const newEncoding = await encodeFace(imageBase64);
+    if (!newEncoding) return res.status(404).json({ error: 'No face detected in input image' });
+
+    const result = compareFaces(newEncoding, storedEncoding);
+
+    res.json({
+      match: result.match,
+      distance: result.distance
+    });
+  } catch (error) {
+    console.error('Verify error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 // User management
 app.get('/api/users/pending', authenticateToken, async (req, res) => {
   try {
@@ -205,19 +262,68 @@ app.put('/api/users/:id/approve', authenticateToken, async (req, res) => {
 //     res.status(500).json({ error: 'Internal server error' });
 //   }
 // });
+
+// app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
+//   try {
+//     const userId = req.user.userId;
+//     const today = new Date().toISOString().split('T')[0];
+//     const now = new Date();
+//     const { faceImage } = req.body;
+
+//     if (!faceImage) {
+//       return res.status(400).json({ error: 'Face image is required for verification' });
+//     }
+
+//     // 1. Kirim faceImage ke Python untuk verifikasi
+//     // const verifyRes = await fetch('http://localhost:5000/api/face/verify', {
+//     //   method: 'POST',
+//     //   headers: { 'Content-Type': 'application/json' },
+//     //   body: JSON.stringify({ userId: userId, faceImage: faceImage })
+//     // });
+
+//     // 2. Cek apakah sudah absen hari ini
+//     const existingRecord = await client.query(
+//       'SELECT id FROM attendance_records WHERE user_id = $1 AND attendance_date = $2',
+//       [userId, today]
+//     );
+//     if (existingRecord.rows.length > 0) {
+//       return res.status(400).json({ error: 'Already checked in today' });
+//     }
+
+//     // 3. Status Hadir/Terlambat
+//     const checkInHour = now.getHours();
+//     const status = checkInHour > 9 ? 'Late' : 'Present';
+
+//     // 4. Simpan absen ke database
+//     await client.query(
+//       `INSERT INTO attendance_records 
+//        (user_id, check_in_time, attendance_date, status, ip_address_check_in, face_match_confidence) 
+//        VALUES ($1, $2, $3, $4, $5, $6)`,
+//       [userId, now, today, status, req.ip, verifyResult.distance]
+//     );
+
+//     res.json({ success: true, message: 'Check-in successful', confidence: verifyResult.distance });
+
+//   } catch (error) {
+//     console.error('Check-in error:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
+
 app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
-    const { faceImage } = req.body;
+    const { faceImage, deviceInfo } = req.body;
 
     if (!faceImage) {
       return res.status(400).json({ error: 'Face image is required for verification' });
     }
 
-    // 1. Kirim faceImage ke Python untuk verifikasi
-    const verifyRes = await fetch('http://localhost:5000/api/face/verify', {
+    // Kirim ke face-api server
+    const FACE_API_URL = process.env.FACE_API_URL || "http://localhost:5000";
+    const verifyRes = await fetch(`${FACE_API_URL}/api/face/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: userId, faceImage: faceImage })
@@ -225,10 +331,13 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
 
     const verifyResult = await verifyRes.json();
     if (!verifyResult.match) {
-      return res.status(401).json({ error: 'Face verification failed', confidence: verifyResult.distance });
+      return res.status(401).json({
+        error: 'Face verification failed',
+        confidence: verifyResult.distance
+      });
     }
 
-    // 2. Cek apakah sudah absen hari ini
+    // Cek apakah sudah absen hari ini
     const existingRecord = await client.query(
       'SELECT id FROM attendance_records WHERE user_id = $1 AND attendance_date = $2',
       [userId, today]
@@ -237,22 +346,84 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Already checked in today' });
     }
 
-    // 3. Status Hadir/Terlambat
+    // Status hadir atau terlambat
     const checkInHour = now.getHours();
     const status = checkInHour > 9 ? 'Late' : 'Present';
 
-    // 4. Simpan absen ke database
-    await client.query(
+    // Insert ke database
+    const result = await client.query(
       `INSERT INTO attendance_records 
-       (user_id, check_in_time, attendance_date, status, ip_address_check_in, face_match_confidence) 
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, now, today, status, req.ip, verifyResult.distance]
+        (user_id, check_in_time, attendance_date, status, face_match_confidence, verified, ip_address_check_in, device_info, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+       RETURNING id`,
+      [
+        userId,
+        now,
+        today,
+        status,
+        verifyResult.distance,
+        true,
+        req.ip,
+        deviceInfo || 'Unknown device'
+      ]
     );
 
-    res.json({ success: true, message: 'Check-in successful', confidence: verifyResult.distance });
+    res.json({
+      success: true,
+      message: 'Check-in successful',
+      attendanceId: result.rows[0].id,
+      confidence: verifyResult.distance
+    });
 
   } catch (error) {
     console.error('Check-in error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/attendance/checkout', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const { deviceInfo } = req.body;
+
+    // Cari record checkin hari ini
+    const recordRes = await client.query(
+      `SELECT id, check_in_time FROM attendance_records 
+       WHERE user_id = $1 AND attendance_date = $2`,
+      [userId, today]
+    );
+
+    if (recordRes.rows.length === 0) {
+      return res.status(400).json({ error: 'No check-in record found today' });
+    }
+
+    const record = recordRes.rows[0];
+
+    // Hitung jam kerja
+    const checkInTime = new Date(record.check_in_time);
+    const workHours = (now - checkInTime) / (1000 * 60 * 60); // jam
+
+    await client.query(
+      `UPDATE attendance_records
+       SET check_out_time = $1,
+           work_hours = $2,
+           ip_address_check_out = $3,
+           device_info = $4,
+           updated_at = NOW()
+       WHERE id = $5`,
+      [now, workHours, req.ip, deviceInfo || 'Unknown device', record.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Check-out successful',
+      workHours
+    });
+
+  } catch (error) {
+    console.error('Check-out error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
