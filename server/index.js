@@ -15,21 +15,21 @@ const PORT = 3001;
 loadModels().then(() => console.log('Face API models loaded ✅'));
 
 // Database configuration
-// const dbConfig = {
-//   host: 'localhost',
-//   port: 5432,
-//   database: 'attendance_system',
-//   user: 'postgres',
-//   password: 'testing123!@' // Change this to your PostgreSQL password
-// };
-
 const dbConfig = {
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD
+  host: 'localhost',
+  port: 5432,
+  database: 'attendance_system',
+  user: 'postgres',
+  password: 'testing123!@' // Change this to your PostgreSQL password
 };
+
+// const dbConfig = {
+//   host: process.env.DB_HOST,
+//   port: process.env.DB_PORT || 5432,
+//   database: process.env.DB_NAME,
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASSWORD
+// };
 
 //const JWT_SECRET = process.env.JWT_SECRET;
 

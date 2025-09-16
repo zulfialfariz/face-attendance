@@ -17,60 +17,60 @@ const EmployeeAttendance: React.FC = () => {
   
   // Mock data - in real app this would come from API
   const [attendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: '1',
-      userId: '3',
-      userName: 'John Doe',
-      checkIn: '09:00:00',
-      checkOut: '17:30:00',
-      date: '2024-01-15',
-      status: 'Present'
-    },
-    {
-      id: '2',
-      userId: '4',
-      userName: 'Jane Smith',
-      checkIn: '09:15:00',
-      checkOut: '17:25:00',
-      date: '2024-01-15',
-      status: 'Late'
-    },
-    {
-      id: '3',
-      userId: '5',
-      userName: 'Bob Johnson',
-      checkIn: '',
-      checkOut: '',
-      date: '2024-01-15',
-      status: 'Absent'
-    },
-    {
-      id: '4',
-      userId: '3',
-      userName: 'John Doe',
-      checkIn: '08:45:00',
-      checkOut: '17:00:00',
-      date: '2024-01-14',
-      status: 'Present'
-    },
-    {
-      id: '5',
-      userId: '4',
-      userName: 'Jane Smith',
-      checkIn: '08:55:00',
-      checkOut: '17:35:00',
-      date: '2024-01-14',
-      status: 'Present'
-    },
-    {
-      id: '6',
-      userId: '5',
-      userName: 'Bob Johnson',
-      checkIn: '09:20:00',
-      checkOut: '17:15:00',
-      date: '2024-01-14',
-      status: 'Late'
-    }
+    // {
+    //   id: '1',
+    //   userId: '3',
+    //   userName: 'John Doe',
+    //   checkIn: '09:00:00',
+    //   checkOut: '17:30:00',
+    //   date: '2024-01-15',
+    //   status: 'Present'
+    // },
+    // {
+    //   id: '2',
+    //   userId: '4',
+    //   userName: 'Jane Smith',
+    //   checkIn: '09:15:00',
+    //   checkOut: '17:25:00',
+    //   date: '2024-01-15',
+    //   status: 'Late'
+    // },
+    // {
+    //   id: '3',
+    //   userId: '5',
+    //   userName: 'Bob Johnson',
+    //   checkIn: '',
+    //   checkOut: '',
+    //   date: '2024-01-15',
+    //   status: 'Absent'
+    // },
+    // {
+    //   id: '4',
+    //   userId: '3',
+    //   userName: 'John Doe',
+    //   checkIn: '08:45:00',
+    //   checkOut: '17:00:00',
+    //   date: '2024-01-14',
+    //   status: 'Present'
+    // },
+    // {
+    //   id: '5',
+    //   userId: '4',
+    //   userName: 'Jane Smith',
+    //   checkIn: '08:55:00',
+    //   checkOut: '17:35:00',
+    //   date: '2024-01-14',
+    //   status: 'Present'
+    // },
+    // {
+    //   id: '6',
+    //   userId: '5',
+    //   userName: 'Bob Johnson',
+    //   checkIn: '09:20:00',
+    //   checkOut: '17:15:00',
+    //   date: '2024-01-14',
+    //   status: 'Late'
+    // }
   ]);
 
   const filteredRecords = attendanceRecords.filter(record => {

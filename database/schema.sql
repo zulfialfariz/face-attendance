@@ -8,53 +8,151 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Tabel untuk menyimpan informasi pengguna/karyawan
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    full_name VARCHAR(100) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'Karyawan' CHECK (role IN ('Karyawan', 'HR', 'IT', 'Admin', 'Super Admin')),
-    is_approved BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES users(id),
-    updated_by UUID REFERENCES users(id)
-);
+-- Table: public.users
+
+-- DROP TABLE IF EXISTS public.users;
+
+CREATE TABLE IF NOT EXISTS public.users
+(
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    username character varying(50) COLLATE pg_catalog."default" NOT NULL,
+    email character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    full_name character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    password_hash character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    role character varying(20) COLLATE pg_catalog."default" DEFAULT 'Karyawan'::character varying,
+    is_approved boolean DEFAULT false,
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    created_by uuid,
+    updated_by uuid,
+    CONSTRAINT users_pkey PRIMARY KEY (id),
+    CONSTRAINT users_email_key UNIQUE (email),
+    CONSTRAINT users_username_key UNIQUE (username),
+    CONSTRAINT users_created_by_fkey FOREIGN KEY (created_by)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT users_updated_by_fkey FOREIGN KEY (updated_by)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT users_role_check CHECK (role::text = ANY (ARRAY['Karyawan'::character varying, 'HR'::character varying, 'IT'::character varying, 'Admin'::character varying, 'Super Admin'::character varying]::text[]))
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.users
+    OWNER to postgres;
+-- Index: idx_users_email
+
+-- DROP INDEX IF EXISTS public.idx_users_email;
+
+CREATE INDEX IF NOT EXISTS idx_users_email
+    ON public.users USING btree
+    (email COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_users_is_approved
+
+-- DROP INDEX IF EXISTS public.idx_users_is_approved;
+
+CREATE INDEX IF NOT EXISTS idx_users_is_approved
+    ON public.users USING btree
+    (is_approved ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_users_role
+
+-- DROP INDEX IF EXISTS public.idx_users_role;
+
+CREATE INDEX IF NOT EXISTS idx_users_role
+    ON public.users USING btree
+    (role COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_users_username
+
+-- DROP INDEX IF EXISTS public.idx_users_username;
+
+CREATE INDEX IF NOT EXISTS idx_users_username
+    ON public.users USING btree
+    (username COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+-- Trigger: update_users_updated_at
+
+-- DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+
+CREATE OR REPLACE TRIGGER update_users_updated_at
+    BEFORE UPDATE 
+    ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+------------------------------------------------------------------------------------------------------------
 
 -- 2. Tabel untuk menyimpan data wajah karyawan untuk face recognition
-CREATE TABLE face_data (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    face_encoding TEXT NOT NULL, -- Encoded face data (Base64 atau format lain)
-    face_image_url TEXT, -- URL gambar wajah yang disimpan
-    confidence_score DECIMAL(5,4), -- Tingkat kepercayaan encoding wajah
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+-- Table: public.face_data
+
+-- DROP TABLE IF EXISTS public.face_data;
+
+CREATE TABLE IF NOT EXISTS public.face_data
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    face_encoding jsonb NOT NULL,
+    face_image_url text COLLATE pg_catalog."default",
+    is_active boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now(),
+    CONSTRAINT face_data_pkey PRIMARY KEY (id),
+    CONSTRAINT fk_face_user FOREIGN KEY (user_id)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.face_data
+    OWNER to postgres;
+---------------------------------------------------------------------------------------------------------------------------------
 
 -- 3. Tabel untuk menyimpan riwayat absensi
-CREATE TABLE attendance_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    check_in_time TIMESTAMP WITH TIME ZONE,
-    check_out_time TIMESTAMP WITH TIME ZONE,
-    attendance_date DATE NOT NULL,
-    status VARCHAR(20) DEFAULT 'Present' CHECK (status IN ('Present', 'Late', 'Absent', 'Half Day')),
-    work_hours DECIMAL(4,2), -- Jam kerja dalam desimal (mis: 8.5 jam)
-    overtime_hours DECIMAL(4,2) DEFAULT 0,
-    location_check_in TEXT, -- Lokasi check-in (optional)
-    location_check_out TEXT, -- Lokasi check-out (optional)
-    ip_address_check_in INET, -- IP address saat check-in
-    ip_address_check_out INET, -- IP address saat check-out
-    face_match_confidence DECIMAL(5,4), -- Tingkat kepercayaan pencocokan wajah
-    device_info TEXT, -- Informasi device yang digunakan
-    notes TEXT, -- Catatan tambahan
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+-- Table: public.attendance_records
+
+-- DROP TABLE IF EXISTS public.attendance_records;
+
+CREATE TABLE IF NOT EXISTS public.attendance_records
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    check_in_time timestamp with time zone,
+    check_out_time timestamp with time zone,
+    attendance_date date NOT NULL,
+    status attendance_status NOT NULL DEFAULT 'Present'::attendance_status,
+    work_hours interval,
+    overtime_hours interval,
+    location_check_in text COLLATE pg_catalog."default",
+    location_check_out text COLLATE pg_catalog."default",
+    ip_address_check_in inet,
+    ip_address_check_out inet,
+    face_match_confidence numeric(5,4),
+    verified boolean DEFAULT false,
+    device_info text COLLATE pg_catalog."default",
+    notes text COLLATE pg_catalog."default",
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT attendance_records_pkey PRIMARY KEY (id),
+    CONSTRAINT fk_attendance_user FOREIGN KEY (user_id)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.attendance_records
+    OWNER to postgres;
+------------------------------------------------------------------------------------------------------------------
 
 -- 4. Tabel untuk menyimpan log aktivitas sistem
 CREATE TABLE audit_logs (

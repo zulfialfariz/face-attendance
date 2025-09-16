@@ -10,53 +10,53 @@ import { AttendanceRecord } from '@/types/user';
 const AttendanceHistory: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('');
   
-  // Mock data - in real app this would come from API
+  // // Mock data - in real app this would come from API
   const [attendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: '1',
-      userId: 'current-user',
-      userName: 'John Doe',
-      checkIn: '09:00:00',
-      checkOut: '17:30:00',
-      date: '2024-01-15',
-      status: 'Present'
-    },
-    {
-      id: '2',
-      userId: 'current-user',
-      userName: 'John Doe',
-      checkIn: '09:15:00',
-      checkOut: '17:25:00',
-      date: '2024-01-14',
-      status: 'Late'
-    },
-    {
-      id: '3',
-      userId: 'current-user',
-      userName: 'John Doe',
-      checkIn: '08:45:00',
-      checkOut: '17:00:00',
-      date: '2024-01-13',
-      status: 'Present'
-    },
-    {
-      id: '4',
-      userId: 'current-user',
-      userName: 'John Doe',
-      checkIn: '08:55:00',
-      checkOut: '17:35:00',
-      date: '2024-01-12',
-      status: 'Present'
-    },
-    {
-      id: '5',
-      userId: 'current-user',
-      userName: 'John Doe',
-      checkIn: '',
-      checkOut: '',
-      date: '2024-01-11',
-      status: 'Absent'
-    }
+  //   {
+  //     id: '1',
+  //     userId: 'current-user',
+  //     userName: 'John Doe',
+  //     checkIn: '09:00:00',
+  //     checkOut: '17:30:00',
+  //     date: '2024-01-15',
+  //     status: 'Present'
+  //   },
+  //   {
+  //     id: '2',
+  //     userId: 'current-user',
+  //     userName: 'John Doe',
+  //     checkIn: '09:15:00',
+  //     checkOut: '17:25:00',
+  //     date: '2024-01-14',
+  //     status: 'Late'
+  //   },
+  //   {
+  //     id: '3',
+  //     userId: 'current-user',
+  //     userName: 'John Doe',
+  //     checkIn: '08:45:00',
+  //     checkOut: '17:00:00',
+  //     date: '2024-01-13',
+  //     status: 'Present'
+  //   },
+  //   {
+  //     id: '4',
+  //     userId: 'current-user',
+  //     userName: 'John Doe',
+  //     checkIn: '08:55:00',
+  //     checkOut: '17:35:00',
+  //     date: '2024-01-12',
+  //     status: 'Present'
+  //   },
+  //   {
+  //     id: '5',
+  //     userId: 'current-user',
+  //     userName: 'John Doe',
+  //     checkIn: '',
+  //     checkOut: '',
+  //     date: '2024-01-11',
+  //     status: 'Absent'
+  //   }
   ]);
 
   const filteredRecords = dateFilter 
