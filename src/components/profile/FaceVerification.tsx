@@ -125,90 +125,69 @@ const FaceVerification: React.FC = () => {
   //   });
   // };
 
-  const generateFaceEncoding = async (imageData: string): Promise<number[] | null> => {
-  try {
-    const res = await fetch('http://localhost:3001/api/face/encode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: imageData })
-    });
+//   const generateFaceEncoding = async (imageData: string): Promise<number[] | null> => {
+//   try {
+//     const res = await fetch('http://localhost:3001/api/face/encode', {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ imageBase64: imageData })
+//     });
 
-    const result = await res.json();
-    return result.encoding || null;
-  } catch (error) {
-    console.error('Encoding error:', error);
-    return null;
-  }
-};
+//     const result = await res.json();
+//     return result.encoding || null;
+//   } catch (error) {
+//     console.error('Encoding error:', error);
+//     return null;
+//   }
+// };
 
   // Function to save face data to database
-  const saveFaceDataToDatabase = async (imageData: string, encoding: number[]) => {
-    if (!currentUser || !currentUser.id) {
-      toast({
-        title: "Error",
-        description: "User information not available. Please login again.",
-        variant: "destructive"
-      });
-      return false;
-    }
-
+  const saveFaceDataToDatabase = async (imageData: string) => {
+  try {
     setIsSaving(true);
-    
-    
-    try {
-      // Payload dengan user_id dari currentUser
-      const faceDataPayload = {
-        user_id: currentUser.id,
-        face_encoding: JSON.stringify(encoding), // <- array 128 float jadi string
-        face_image_url: imageData,
-        confidence_score: 0.95,
-        is_active: true
-    };
 
+    const response = await fetch("http://localhost:3001/api/face/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("authToken")}`
+      },
+      body: JSON.stringify({ faceImage: imageData })
+    });
 
-      console.log('Saving face data to database:', faceDataPayload);
-      
-      const response = await faceRecogService.faceRegister(faceDataPayload);
-      setIsLoading(false);
+    const result = await response.json();
 
-      if (response.success) {
-        // ✅ Update localStorage agar ProfilePage menampilkan "Verified"
-        const storedUser = localStorage.getItem('user') || localStorage.getItem('currentUser');
-        if (storedUser) {
-          const updatedUser = { ...JSON.parse(storedUser), faceData: true };
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-          window.dispatchEvent(new Event('userUpdated')); // trigger event global
-        }
+    if (response.ok && result.success) {
+      setIsVerified(true);
 
-        // Update local state
-        setCurrentUser(prev => ({ ...prev, faceData: true }));
-
-        toast({
-          title: "Success",
-          description: "Face data has been saved successfully!",
-          variant: "success"
-        });
-        
-        return true;
+      // update local user cache
+      const storedUser = localStorage.getItem("user") || localStorage.getItem("currentUser");
+      if (storedUser) {
+        const updatedUser = { ...JSON.parse(storedUser), faceData: true };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event("userUpdated"));
       }
-      
-      return false;
-    } catch (error) {
-      console.error('Face Registration error:', error);
-      setIsLoading(false);
-      
+
       toast({
-        title: "Database Error",
-        description: error instanceof Error ? error.message : "Failed to save face data to database",
-        variant: "destructive"
+        title: "Success",
+        description: "Face data registered successfully!",
+        variant: "success"
       });
-      
-      return false;
-    } finally {
-      setIsSaving(false);
+    } else {
+      throw new Error(result.error || "Failed to register face data");
     }
-  };
+  } catch (error) {
+    console.error("Error saving face data:", error);
+    toast({
+      title: "Error",
+      description: error instanceof Error ? error.message : "Unknown error",
+      variant: "destructive"
+    });
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   // Function to check if user already has face data
   const checkExistingFaceData = async (userId: string): Promise<boolean> => {
@@ -424,63 +403,56 @@ const FaceVerification: React.FC = () => {
     }
   };
 
-  const saveFaceData = async () => {
-    if (!capturedImage) {
-      toast({
-        title: "Error",
-        description: "No captured image found. Please capture a photo first.",
-        variant: "destructive"
-      });
-      return;
+const saveFaceData = async () => {
+  if (!capturedImage) {
+    toast({
+      title: "Error",
+      description: "No captured image found. Please capture a photo first.",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  if (!currentUser?.id) {
+    toast({
+      title: "Error",
+      description: "User information not available. Please login again.",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  try {
+    // Check if user already has face data
+    const hasExistingData = await checkExistingFaceData(currentUser.id);
+    if (hasExistingData) {
+      const confirmUpdate = window.confirm('You already have face data registered. Do you want to update it?');
+      if (!confirmUpdate) return;
     }
 
-    if (!currentUser?.id) {
-      toast({
-        title: "Error",
-        description: "User information not available. Please login again.",
-        variant: "destructive"
-      });
-      return;
-    }
+    // 👉 langsung save tanpa encoding
+    toast({
+      title: "Processing",
+      description: "Saving face data...",
+    });
 
-    try {
-      // Check if user already has face data
-      const hasExistingData = await checkExistingFaceData(currentUser.id);
-      
-      if (hasExistingData) {
-        const confirmUpdate = window.confirm('You already have face data registered. Do you want to update it?');
-        if (!confirmUpdate) return;
-      }
+    await saveFaceDataToDatabase(capturedImage);
 
-      // Generate face encoding
-      toast({
-        title: "Processing",
-        description: "Generating face encoding...",
-      });
+    setIsVerified(true);
+    toast({
+      title: "Face Verification Successful",
+      description: "Your face has been successfully registered for attendance.",
+    });
 
-      const faceEncoding = await generateFaceEncoding(capturedImage);
-      
-      // Save to database
-      const success = await saveFaceDataToDatabase(capturedImage, faceEncoding);
-      
-      if (success) {
-        setIsVerified(true);
-        
-        toast({
-          title: "Face Verification Successful",
-          description: "Your face has been successfully registered for attendance.",
-        });
-      }
-      
-    } catch (error) {
-      console.error('Error saving face data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to process and save face data. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
+  } catch (error) {
+    console.error('Error saving face data:', error);
+    toast({
+      title: "Error",
+      description: "Failed to process and save face data. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
 
   const retakePhoto = () => {
     setCapturedImage(null);
