@@ -126,11 +126,11 @@ const ProfilePage: React.FC = () => {
                     <p className="text-sm text-gray-600">Required for attendance check-in</p>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    user?.faceData 
+                    user?.faceVerified
                       ? 'bg-green-100 text-green-800' 
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {user?.faceData ? 'Verified' : 'Not Verified'}
+                    {user?.faceVerified ? 'Verified' : 'Not Verified'}
                   </div>
                 </div>
               </div>

@@ -11,7 +11,7 @@ export const DATABASE_CONFIG = {
 // API Configuration
 export const API_CONFIG = {
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api',
-  timeout: 10000
+  timeout: 60000
 };
 
 // Face Recognition Configuration

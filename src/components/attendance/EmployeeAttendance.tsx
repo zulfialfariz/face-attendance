@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,78 +8,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { FileText, CalendarDays } from 'lucide-react';
 import { AttendanceRecord } from '@/types/user';
+import { attendanceService } from '@/services/attendanceService';
 
 const EmployeeAttendance: React.FC = () => {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
-  
-  // Mock data - in real app this would come from API
-  const [attendanceRecords] = useState<AttendanceRecord[]>([
-    // {
-    //   id: '1',
-    //   userId: '3',
-    //   userName: 'John Doe',
-    //   checkIn: '09:00:00',
-    //   checkOut: '17:30:00',
-    //   date: '2024-01-15',
-    //   status: 'Present'
-    // },
-    // {
-    //   id: '2',
-    //   userId: '4',
-    //   userName: 'Jane Smith',
-    //   checkIn: '09:15:00',
-    //   checkOut: '17:25:00',
-    //   date: '2024-01-15',
-    //   status: 'Late'
-    // },
-    // {
-    //   id: '3',
-    //   userId: '5',
-    //   userName: 'Bob Johnson',
-    //   checkIn: '',
-    //   checkOut: '',
-    //   date: '2024-01-15',
-    //   status: 'Absent'
-    // },
-    // {
-    //   id: '4',
-    //   userId: '3',
-    //   userName: 'John Doe',
-    //   checkIn: '08:45:00',
-    //   checkOut: '17:00:00',
-    //   date: '2024-01-14',
-    //   status: 'Present'
-    // },
-    // {
-    //   id: '5',
-    //   userId: '4',
-    //   userName: 'Jane Smith',
-    //   checkIn: '08:55:00',
-    //   checkOut: '17:35:00',
-    //   date: '2024-01-14',
-    //   status: 'Present'
-    // },
-    // {
-    //   id: '6',
-    //   userId: '5',
-    //   userName: 'Bob Johnson',
-    //   checkIn: '09:20:00',
-    //   checkOut: '17:15:00',
-    //   date: '2024-01-14',
-    //   status: 'Late'
-    // }
-  ]);
+
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+  const fetchAll = async () => {
+    try {
+      const records = await attendanceService.getAllAttendance();
+      setAttendanceRecords(records);
+    } catch (err) {
+      console.error("Failed to fetch all attendance:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchAll();
+}, []);
 
   const filteredRecords = attendanceRecords.filter(record => {
-    const matchesSearch = record.userName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
-    const matchesDate = !dateFilter || record.date.includes(dateFilter);
-    
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+  const matchesSearch = (
+    (record.full_name || record.username || record.email || '')
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  );
+  const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
+  const matchesDate = !dateFilter || record.date?.startsWith(dateFilter);
+  
+  return matchesSearch && matchesStatus && matchesDate;
+});
+
+  
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -94,51 +60,47 @@ const EmployeeAttendance: React.FC = () => {
     }
   };
 
-  const calculateWorkingHours = (checkIn: string, checkOut: string) => {
-    if (!checkIn || !checkOut) return '-';
-    
-    const [inHour, inMinute] = checkIn.split(':').map(Number);
-    const [outHour, outMinute] = checkOut.split(':').map(Number);
-    
-    const inTime = inHour * 60 + inMinute;
-    const outTime = outHour * 60 + outMinute;
-    
-    const diffMinutes = outTime - inTime;
-    const hours = Math.floor(diffMinutes / 60);
-    const minutes = diffMinutes % 60;
-    
-    return `${hours}h ${minutes}m`;
-  };
-
-  const exportToExcel = () => {
-    // In a real application, you would implement actual Excel export functionality
+const exportToExcel = async () => {
+  try {
+    const blob = await attendanceService.exportAttendance();
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "attendance_records.xlsx");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
     toast({
-      title: "Export Started",
-      description: "Attendance data is being exported to Excel format."
+      title: "Export Failed",
+      description: "Could not export attendance data",
+      variant: "destructive",
     });
-    
-    // Mock download
-    setTimeout(() => {
-      toast({
-        title: "Export Complete",
-        description: "Attendance report has been downloaded successfully."
-      });
-    }, 2000);
+    console.error("Export error:", err);
+  }
+};
+
+
+
+  const [summary, setSummary] = useState({
+  totalEmployees: 0,
+  presentToday: 0,
+  lateToday: 0,
+  absentToday: 0
+});
+
+useEffect(() => {
+  const fetchSummary = async () => {
+    try {
+      const res = await attendanceService.getSummary(); // 🔹 nanti kita tambahkan di service
+      setSummary(res);
+    } catch (err) {
+      console.error("Failed to fetch summary:", err);
+    }
   };
 
-  const getTodayStats = () => {
-    const today = new Date().toISOString().split('T')[0];
-    const todayRecords = attendanceRecords.filter(record => record.date === today);
-    
-    return {
-      total: todayRecords.length,
-      present: todayRecords.filter(r => r.status === 'Present').length,
-      late: todayRecords.filter(r => r.status === 'Late').length,
-      absent: todayRecords.filter(r => r.status === 'Absent').length
-    };
-  };
-
-  const stats = getTodayStats();
+  fetchSummary();
+}, []);
 
   return (
     <div className="p-6">
@@ -152,7 +114,7 @@ const EmployeeAttendance: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{summary.totalEmployees}</p>
               <p className="text-sm text-gray-600">Total Employees</p>
             </div>
           </CardContent>
@@ -161,7 +123,7 @@ const EmployeeAttendance: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{stats.present}</p>
+              <p className="text-2xl font-bold text-green-600">{summary.presentToday}</p>
               <p className="text-sm text-gray-600">Present Today</p>
             </div>
           </CardContent>
@@ -170,7 +132,7 @@ const EmployeeAttendance: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-yellow-600">{stats.late}</p>
+              <p className="text-2xl font-bold text-yellow-600">{summary.lateToday}</p>
               <p className="text-sm text-gray-600">Late Today</p>
             </div>
           </CardContent>
@@ -179,7 +141,7 @@ const EmployeeAttendance: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
+              <p className="text-2xl font-bold text-red-600">{summary.absentToday}</p>
               <p className="text-sm text-gray-600">Absent Today</p>
             </div>
           </CardContent>
@@ -247,7 +209,7 @@ const EmployeeAttendance: React.FC = () => {
               <tbody>
                 {filteredRecords.map((record) => (
                   <tr key={record.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4 font-medium">{record.userName}</td>
+                    <td className="py-3 px-4 font-medium">{record.full_name || record.username || record.email}</td>
                     <td className="py-3 px-4">
                       {new Date(record.date).toLocaleDateString('id-ID', {
                         year: 'numeric',
@@ -256,13 +218,13 @@ const EmployeeAttendance: React.FC = () => {
                       })}
                     </td>
                     <td className="py-3 px-4 font-mono">
-                      {record.checkIn || '-'}
+                      {record.check_in_time || '-'}
                     </td>
                     <td className="py-3 px-4 font-mono">
-                      {record.checkOut || '-'}
+                      {record.check_out_time || '-'}
                     </td>
                     <td className="py-3 px-4 font-mono">
-                      {calculateWorkingHours(record.checkIn, record.checkOut)}
+                      {record.working_hours || "-"}
                     </td>
                     <td className="py-3 px-4">
                       {getStatusBadge(record.status)}
