@@ -93,6 +93,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -110,7 +111,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(JSON.parse(savedUser));
       }
 
-      // ✅ Set loading selesai setelah pengecekan
+      // Set loading selesai setelah pengecekan
       setIsLoading(false);
     };
 
@@ -168,8 +169,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('authToken');
   };
 
+  // fungsi untuk ambil user terbaru dari backend
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const res = await fetch('http://localhost:3001/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const newUser = await res.json();
+        setUser(newUser);
+        localStorage.setItem('currentUser', JSON.stringify(newUser));
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, isLoading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, Camera, AlertCircle, Upload, Database, User } from 'lucide-react';
 import { faceRecogService } from '@/services/faceRegService';
+import { useAuth } from "@/context/AuthContext";
+
 
 const FaceVerification: React.FC = () => {
   const [isVerified, setIsVerified] = useState(false);
@@ -403,6 +405,8 @@ const FaceVerification: React.FC = () => {
     }
   };
 
+
+const { refreshUser } = useAuth();
 const saveFaceData = async () => {
   if (!capturedImage) {
     toast({
@@ -437,6 +441,10 @@ const saveFaceData = async () => {
     });
 
     await saveFaceDataToDatabase(capturedImage);
+
+    if (refreshUser) {
+      await refreshUser(); 
+    }
 
     setIsVerified(true);
     toast({

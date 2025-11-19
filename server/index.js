@@ -7,8 +7,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const ExcelJS = require("exceljs");
 // geolocation
-const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.241977 '); // latitude kantor scbd = '-6.22849'
-const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.978994'); // longitude kantor scbd = '106.80688'
+const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.22849'); // latitude kantor scbd = '-6.22849', rumah ='-6.241977'
+const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.80688'); // longitude kantor scbd = '106.80688', rumah ='106.978994'
 const OFFICE_RADIUS_M = parseFloat(process.env.OFFICE_RADIUS_M || '200'); // radius dalam meter
 
 // Database configuration
@@ -246,6 +246,39 @@ app.put('/api/users/:id/approve', authenticateToken, async (req, res) => {
   }
 });
 
+// endpoint get current user (frontend refresh user info)
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+
+    const result = await client.query(
+      `SELECT id, username, email, full_name, role, is_approved, face_verified, created_at, updated_at
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
+      isApproved: user.is_approved,
+      faceVerified: user.face_verified,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+    });
+  } catch (error) {
+    console.error('Fetch current user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 
 // ================================ Routes FACE ============================== //
@@ -532,13 +565,37 @@ function cleanBase64(base64String) {
 }
 
 app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
-  try {
-    console.log("Checkin API hit");
-    const userId = req.user.userId;
-    const now = new Date();
-    //const today = now.toISOString().split('T')[0];
-    const { faceImage, deviceInfo, latitude, longitude } = req.body;
+  const userId = req.user.userId;
+  const now = new Date();
+  //const today = now.toISOString().split('T')[0];
+  const { faceImage, deviceInfo, latitude, longitude } = req.body;
 
+  try {
+        // VALIDASI GEOLOCATION
+    if (!latitude || !longitude) {
+      return res.status(400).json({ 
+        error: "Geolocation is required"
+      });
+    }
+
+    const distance = haversineDistanceMeters(
+      latitude,
+      longitude,
+      OFFICE_LAT,
+      OFFICE_LON
+    );
+
+    console.log("User distance from office:", distance);
+
+    if (distance > OFFICE_RADIUS_M) {
+      return res.status(403).json({
+        error: "You are outside the allowed check-in area",
+        distanceFromOffice: distance,
+        maxRadius: OFFICE_RADIUS_M
+      });
+    }
+
+    console.log("Checkin API hit");
     console.log("Body keys:", Object.keys(req.body));
     console.log("Lat:", latitude, "Lon:", longitude);
     console.log("FaceImage length:", faceImage?.length);
@@ -598,7 +655,7 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
       check_in_lat, check_in_lon, geolocation_verified_check_in, created_at, updated_at)
       VALUES ($1, NOW(), CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())
       RETURNING id`,
-      [userId, status, req.ip, compareRes.distance, true, deviceInfo || 'Unknown', latitude || null, longitude || null]
+      [userId, status, req.ip, compareRes.distance, true, deviceInfo || 'Unknown', latitude, longitude, distance <= OFFICE_RADIUS_M]
     );
 
     console.log("Insert success, recordId:", result.rows[0].id);
@@ -621,11 +678,26 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
 
 // endpoint attendance checkout
 app.post('/api/attendance/checkout', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const now = new Date();
+  //const today = now.toISOString().split('T')[0];
+  const { faceImage, deviceInfo, latitude, longitude } = req.body;
+
   try {
-    const userId = req.user.userId;
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const { faceImage, deviceInfo, latitude, longitude } = req.body;
+    // VALIDASI GEOLOCATION
+    if (!latitude || !longitude) {
+      return res.status(400).json({ error: "Geolocation is required" });
+    }
+
+    const distance = haversineDistanceMeters(latitude, longitude, OFFICE_LAT, OFFICE_LON);
+
+    if (distance > OFFICE_RADIUS_M) {
+      return res.status(403).json({
+        error: "You are outside the allowed check-out area",
+        distance,
+        allowedRadius: OFFICE_RADIUS_M
+      });
+    }
 
     if (!faceImage) {
       return res.status(400).json({ error: 'Face image is required' });
@@ -684,11 +756,11 @@ app.post('/api/attendance/checkout', authenticateToken, async (req, res) => {
            verified_check_out=$5,
            check_out_lat=$6,
            check_out_lon=$7,
-           geolocation_verified_check_out=true,
-           work_hours=$8,
+           geolocation_verified_check_out=$8,
+           work_hours=$9,
            updated_at=NOW()
-       WHERE id=$9`,
-      [now, req.ip, deviceInfo || 'Unknown', compareRes.distance, true, latitude || null, longitude || null, workHours, recordId]
+       WHERE id=$10`,
+      [now, req.ip, deviceInfo || 'Unknown', compareRes.distance, true, latitude, longitude, distance <= OFFICE_RADIUS_M, workHours, recordId]
     );
 
     res.json({
