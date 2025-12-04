@@ -8,6 +8,7 @@ import { attendanceService } from '@/services/attendanceService';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const [summary, setSummary] = useState<any>(null);
   const { toast } = useToast();
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -366,6 +367,14 @@ const attendedDays = monthlyRecords.filter(r => r.check_in_time).length;
   }
 }, [user]);
 
+// Summary khusus HR
+useEffect(() => {
+  if (user?.role === 'HR') {
+    attendanceService.getSummary().then(setSummary);
+  }
+}, [user]);
+
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -382,6 +391,7 @@ const attendedDays = monthlyRecords.filter(r => r.check_in_time).length;
             })}
           </p>
         </div>
+        
 
         {user?.role === 'Karyawan' && (
           <div className="flex gap-3">
@@ -454,56 +464,104 @@ const attendedDays = monthlyRecords.filter(r => r.check_in_time).length;
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-  {stats ? (
-    <>
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">This Month Attendance</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.monthAttendance}</p>
-            </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CalendarDays className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Stats Section */}
+      {user?.role === "HR" ? (
+        /* Summary untuk HR */
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {summary ? (
+            <>
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-gray-600">Total Employees</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {summary.totalEmployees}
+                  </p>
+                </CardContent>
+              </Card>
 
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">On Time Rate</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.onTimeRate}</p>
-            </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UserCheck className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-gray-600">Present Today</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {summary.presentToday}
+                  </p>
+                </CardContent>
+              </Card>
 
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Working Days</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalWorkingDays}</p>
-            </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      </>
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-gray-600">Late Today</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {summary.lateToday}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-gray-600">Absent Today</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                    {summary.absentToday}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <p className="text-gray-500">Loading HR summary...</p>
+          )}
+        </div>
       ) : (
-        <p className="text-gray-500">Loading stats...</p>
-        )}
-      </div>
+        /* Stats untuk Karyawan */
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {stats ? (
+            <>
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">This Month Attendance</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{stats.monthAttendance}</p>
+                    </div>
+                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <CalendarDays className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">On Time Rate</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{stats.onTimeRate}</p>
+                    </div>
+                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <UserCheck className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Working Days</p>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalWorkingDays}</p>
+                    </div>
+                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Users className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <p className="text-gray-500">Loading stats...</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

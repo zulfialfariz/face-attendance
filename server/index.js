@@ -7,8 +7,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const ExcelJS = require("exceljs");
 // geolocation
-const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.22849'); // latitude kantor scbd = '-6.22849', rumah ='-6.241977'
-const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.80688'); // longitude kantor scbd = '106.80688', rumah ='106.978994'
+const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.2247'); // latitude kantor scbd = '-6.22849', rumah ='-6.241977'
+const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.8751'); // longitude kantor scbd = '106.80688', rumah ='106.978994'
 const OFFICE_RADIUS_M = parseFloat(process.env.OFFICE_RADIUS_M || '200'); // radius dalam meter
 
 // Database configuration
@@ -112,6 +112,21 @@ function formatDuration(checkIn, checkOut) {
   const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
   const minutes = String(totalMinutes % 60).padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+
+// helper bersihin base64
+function cleanBase64(base64String) {
+  return base64String.replace(/^data:image\/\w+;base64,/, "");
+}
+
+// helper timeout wrapper
+async function encodeFaceWithTimeout(imageBase64, timeout = 10000) {
+  return Promise.race([
+    encodeFace(imageBase64),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Face encoding timeout")), timeout)
+    )
+  ]);
 }
 
 
@@ -299,21 +314,6 @@ app.post('/api/face/encode', async (req, res) => {
   }
 });
 
-// helper bersihin base64
-function cleanBase64(base64String) {
-  return base64String.replace(/^data:image\/\w+;base64,/, "");
-}
-
-// helper timeout wrapper
-async function encodeFaceWithTimeout(imageBase64, timeout = 10000) {
-  return Promise.race([
-    encodeFace(imageBase64),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Face encoding timeout")), timeout)
-    )
-  ]);
-}
-
 // endpoint verifikasi wajah
 app.post('/api/face/verify', async (req, res) => {
   try {
@@ -368,9 +368,9 @@ app.post('/api/face/verify', async (req, res) => {
 
 // endpoint face verification
 // helper bersihin base64 prefix
-function cleanBase64(base64String) {
-  return base64String.replace(/^data:image\/\w+;base64,/, "");
-}
+// function cleanBase64(base64String) {
+//   return base64String.replace(/^data:image\/\w+;base64,/, "");
+// }
 
 app.post('/api/face/register', authenticateToken, async (req, res) => {
   try {
@@ -560,9 +560,9 @@ app.get('/api/attendance/all', authenticateToken, async (req, res) => {
 
 // endpoint attendances checkin
 // helper untuk bersihin base64
-function cleanBase64(base64String) {
-  return base64String.replace(/^data:image\/\w+;base64,/, "");
-}
+// function cleanBase64(base64String) {
+//   return base64String.replace(/^data:image\/\w+;base64,/, "");
+// }
 
 app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
@@ -653,7 +653,7 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
       (user_id, check_in_time, attendance_date, status, ip_address_check_in, 
       face_match_confidence_check_in, verified_check_in, device_info, 
       check_in_lat, check_in_lon, geolocation_verified_check_in, created_at, updated_at)
-      VALUES ($1, NOW(), CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW())
+      VALUES ($1, NOW(), CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       RETURNING id`,
       [userId, status, req.ip, compareRes.distance, true, deviceInfo || 'Unknown', latitude, longitude, distance <= OFFICE_RADIUS_M]
     );
@@ -680,7 +680,7 @@ app.post('/api/attendance/checkin', authenticateToken, async (req, res) => {
 app.post('/api/attendance/checkout', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   const now = new Date();
-  //const today = now.toISOString().split('T')[0];
+  const today = now.toISOString().split('T')[0];
   const { faceImage, deviceInfo, latitude, longitude } = req.body;
 
   try {
