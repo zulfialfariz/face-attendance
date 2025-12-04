@@ -268,7 +268,7 @@ useEffect(() => {
     }
   };
 
-  if (user?.role === "Karyawan") {
+  if (user?.role === "Karyawan" || user?.role === "HR") {
     fetchTodayAttendance();
   }
 }, [user]);
@@ -393,7 +393,7 @@ useEffect(() => {
         </div>
         
 
-        {user?.role === 'Karyawan' && (
+        {(user?.role === 'Karyawan' || user?.role === 'HR') && (
           <div className="flex gap-3">
             {!isCheckedIn ? (
               <Button

@@ -261,6 +261,26 @@ app.put('/api/users/:id/approve', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/api/users/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Soft delete user (atau hapus beneran)
+    await client.query(
+      `UPDATE users 
+       SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error rejecting user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 // endpoint get current user (frontend refresh user info)
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
