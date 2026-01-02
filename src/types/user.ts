@@ -7,8 +7,10 @@ export interface User {
   role: UserRole;
   isApproved: boolean;
   faceVerified: boolean;
+  face_data?: boolean;
   createdAt: string;
   updatedAt: string;
+  photoUrl?: string | null;
 }
 
 export type UserRole = 'Karyawan' | 'HR' | 'IT' | 'Admin' | 'Super Admin';

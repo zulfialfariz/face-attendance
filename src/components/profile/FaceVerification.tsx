@@ -102,46 +102,6 @@ const FaceVerification: React.FC = () => {
     };
   }, []);
 
-  // Function to convert image to face encoding (simplified simulation)
-  // const generateFaceEncoding = async (imageData: string): Promise<string> => {
-  //   // Dalam implementasi nyata, Anda akan menggunakan library seperti face-api.js
-  //   // atau mengirim ke backend untuk diproses dengan Python (face_recognition library)
-    
-  //   // Simulasi encoding - dalam implementasi nyata, ini akan menggunakan AI model
-  //   const canvas = document.createElement('canvas');
-  //   const ctx = canvas.getContext('2d');
-  //   const img = new Image();
-    
-  //   return new Promise((resolve) => {
-  //     img.onload = () => {
-  //       canvas.width = 150;
-  //       canvas.height = 150;
-  //       ctx?.drawImage(img, 0, 0, 150, 150);
-        
-  //       // Simulasi face encoding sebagai base64 string
-  //       // Dalam implementasi nyata, ini akan berupa array numerik yang di-encode
-  //       const encoding = canvas.toDataURL('image/jpeg', 0.5);
-  //       resolve(encoding);
-  //     };
-  //     img.src = imageData;
-  //   });
-  // };
-
-//   const generateFaceEncoding = async (imageData: string): Promise<number[] | null> => {
-//   try {
-//     const res = await fetch('http://localhost:3001/api/face/encode', {
-//       method: 'POST',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ imageBase64: imageData })
-//     });
-
-//     const result = await res.json();
-//     return result.encoding || null;
-//   } catch (error) {
-//     console.error('Encoding error:', error);
-//     return null;
-//   }
-// };
 
   // Function to save face data to database
   const saveFaceDataToDatabase = async (imageData: string) => {

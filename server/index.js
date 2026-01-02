@@ -7,8 +7,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const ExcelJS = require("exceljs");
 // geolocation
-const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.2247'); // latitude kantor scbd = '-6.22849', rumah ='-6.241977'
-const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.8751'); // longitude kantor scbd = '106.80688', rumah ='106.978994'
+const OFFICE_LAT = parseFloat(process.env.OFFICE_LAT || '-6.2495'); // latitude kantor scbd = '-6.22849', rumah ='-6.241977'
+const OFFICE_LON = parseFloat(process.env.OFFICE_LON || '106.9057'); // longitude kantor scbd = '106.80688', rumah ='106.978994'
 const OFFICE_RADIUS_M = parseFloat(process.env.OFFICE_RADIUS_M || '200'); // radius dalam meter
 
 // Database configuration
@@ -27,12 +27,12 @@ const client = new Client(dbConfig);
 client.connect();
 
 const app = express();
-app.use(bodyParser.json({ limit: '10mb' }));
+//app.use(bodyParser.json({ limit: '10mb' }));
 const PORT = 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -221,6 +221,53 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// endpoint change password
+app.put('/api/auth/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: "Old password and new password are required" });
+    }
+
+    // Ambil user dari database
+    const result = await client.query(
+      `SELECT id, password_hash FROM users WHERE id = $1 AND is_active = true`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = result.rows[0];
+
+    // Cek password lama
+    const isMatch = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect old password" });
+    }
+
+    // Hash password baru
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    // Update DB
+    await client.query(
+      `UPDATE users
+       SET password_hash = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [newHash, user.id]
+    );
+
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 // endpoint user management
 app.get('/api/users/pending', authenticateToken, async (req, res) => {
   try {
@@ -280,6 +327,121 @@ app.delete('/api/users/:id/reject', authenticateToken, async (req, res) => {
   }
 });
 
+// endpoint role management
+app.get('/api/roles', authenticateToken, async (req, res) => {
+  try {
+    if (!['Super Admin', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const roles = ['Super Admin', 'Admin', 'IT', 'HR', 'Karyawan'];
+
+    res.json({ roles });
+  } catch (error) {
+    console.error("Fetch roles error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    if (!['Super Admin', 'Admin', 'IT'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const result = await client.query(`
+      SELECT id, username, email, full_name, role, is_active, created_at
+      FROM users
+      ORDER BY created_at DESC
+    `);
+
+    const users = result.rows.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      fullName: u.full_name,
+      role: u.role,
+      isActive: u.is_active,
+      createdAt: u.created_at
+    }));
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/users/:id/role', authenticateToken, async (req, res) => {
+  try {
+    if (!['Super Admin', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (!role) {
+      return res.status(400).json({ error: 'Role is required' });
+    }
+
+    await client.query(
+      `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`,
+      [role, id]
+    );
+
+    res.json({ success: true, message: 'Role updated successfully' });
+  } catch (error) {
+    console.error('Update role error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!['Super Admin', 'Admin', 'IT', 'HR'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { id } = req.params;
+
+    const result = await client.query(`
+      SELECT id, username, email, full_name, role, is_active, created_at
+      FROM users WHERE id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Get user detail error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!['Super Admin', 'Admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { id } = req.params;
+
+    await client.query(
+      `UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, message: 'User disabled' });
+  } catch (error) {
+    console.error('Disable user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 // endpoint get current user (frontend refresh user info)
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
@@ -314,6 +476,65 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ambil foto profil user (active face)
+app.get('/api/users/me/profile-photo/image', async (req, res) => {
+  try {
+    const token =
+      req.query.token ||
+      (req.headers.authorization &&
+        req.headers.authorization.split(' ')[1]);
+
+    if (!token) return res.sendStatus(401);
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.userId;
+
+    const result = await client.query(
+      `SELECT face_image
+       FROM face_data
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (!result.rows.length) return res.sendStatus(404);
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.send(result.rows[0].face_image);
+
+  } catch (err) {
+    console.error('Profile image error:', err);
+    res.sendStatus(401);
+  }
+});
+
+app.get('/api/users/me/profile-photo', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await client.query(
+      `SELECT face_image
+       FROM face_data
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (!result.rows.length) {
+      return res.json({ photoUrl: null });
+    }
+
+    const base64 = result.rows[0].face_image.toString('base64');
+    res.json({ photoUrl: base64 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch profile photo' });
+  }
+});
+
 
 
 // ================================ Routes FACE ============================== //
@@ -386,12 +607,7 @@ app.post('/api/face/verify', async (req, res) => {
   }
 });
 
-// endpoint face verification
-// helper bersihin base64 prefix
-// function cleanBase64(base64String) {
-//   return base64String.replace(/^data:image\/\w+;base64,/, "");
-// }
-
+//endpoint face register / verification
 app.post('/api/face/register', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.user;
@@ -402,36 +618,48 @@ app.post('/api/face/register', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Face image is required' });
     }
 
+    // bersihkan base64 header
     const cleanImg = cleanBase64(rawImage);
 
-    // encode wajah
+    // === 1. encode wajah (tetap pakai base64) ===
     const encoding = await encodeFace(cleanImg);
     if (!encoding) {
       return res.status(400).json({ error: 'No face detected in image' });
     }
 
-    // biasa untuk disimpan di JSONB
     const encodingArray = Array.from(encoding);
 
-    // nonaktifkan wajah lama
+    // === 2. convert base64 → Buffer (INI KUNCI) ===
+    const imageBuffer = Buffer.from(cleanImg, 'base64');
+
+    // === 3. nonaktifkan wajah lama ===
     await client.query(
-      `UPDATE face_data SET is_active=false, updated_at=NOW() WHERE user_id=$1 AND is_active=true`,
+      `UPDATE face_data
+       SET is_active = false, updated_at = NOW()
+       WHERE user_id = $1 AND is_active = true`,
       [userId]
     );
 
-    // simpan wajah baru
+    // === 4. simpan wajah baru (BYTEA) ===
     const result = await client.query(
-        `INSERT INTO face_data (
-        user_id, face_encoding, face_image_url, is_active, created_at, updated_at
-        )
-        VALUES ($1, $2::jsonb, $3, true, NOW(), NOW())
-        RETURNING id`,
-      [userId, JSON.stringify(encodingArray), cleanImg]
+      `INSERT INTO face_data (
+        user_id,
+        face_encoding,
+        face_image,
+        is_active,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2::jsonb, $3, true, NOW(), NOW())
+      RETURNING id`,
+      [userId, JSON.stringify(encodingArray), imageBuffer]
     );
 
-    // update status user jadi verified
+    // === 5. update user verified ===
     await client.query(
-      `UPDATE users SET face_verified=true, updated_at=NOW() WHERE id=$1`,
+      `UPDATE users
+       SET face_verified = true, updated_at = NOW()
+       WHERE id = $1`,
       [userId]
     );
 
@@ -442,8 +670,8 @@ app.post('/api/face/register', authenticateToken, async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Face registration error:", err);
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    console.error('Face registration error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

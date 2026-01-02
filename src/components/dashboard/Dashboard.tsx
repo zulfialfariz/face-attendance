@@ -369,7 +369,7 @@ const attendedDays = monthlyRecords.filter(r => r.check_in_time).length;
 
 // Summary khusus HR
 useEffect(() => {
-  if (user?.role === 'HR') {
+  if (user?.role === 'HR' || user?.role === 'Super Admin' || user?.role === 'Admin') {
     attendanceService.getSummary().then(setSummary);
   }
 }, [user]);
@@ -393,7 +393,7 @@ useEffect(() => {
         </div>
         
 
-        {(user?.role === 'Karyawan' || user?.role === 'HR') && (
+        {(user?.role === 'Karyawan' || user?.role === 'HR' || user?.role === 'Super Admin' || user?.role === 'Admin') && (
           <div className="flex gap-3">
             {!isCheckedIn ? (
               <Button
@@ -465,7 +465,7 @@ useEffect(() => {
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {/* Stats Section */}
-      {user?.role === "HR" ? (
+      {user?.role === "HR" || user?.role === 'Super Admin' || user?.role === 'Admin' ? (
         /* Summary untuk HR */
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {summary ? (

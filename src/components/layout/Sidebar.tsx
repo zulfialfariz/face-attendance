@@ -1,13 +1,11 @@
-
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Users, 
-  UserCheck, 
-  CalendarDays, 
-  FileText, 
+import {
+  Users,
+  UserCheck,
+  CalendarDays,
+  FileText,
   User,
   LogOut
 } from 'lucide-react';
@@ -20,6 +18,52 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
   const { user, logout } = useAuth();
 
+  // ===============================
+  // STATE
+  // ===============================
+  const [profilePhoto, setProfilePhoto] = React.useState<string | null>(null);
+  const [loadingPhoto, setLoadingPhoto] = React.useState(true);
+
+  // ===============================
+  // LOAD PROFILE PHOTO (WAIT USER)
+  // ===============================
+  React.useEffect(() => {
+    if (!user) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    const fetchPhoto = async () => {
+      try {
+        setLoadingPhoto(true);
+
+        const res = await fetch(
+          'http://localhost:3001/api/users/me/profile-photo',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!res.ok) throw new Error('Failed to fetch profile photo');
+
+        const data = await res.json();
+        setProfilePhoto(data.photoUrl); // base64
+      } catch (err) {
+        console.error('Load profile photo error:', err);
+        setProfilePhoto(null);
+      } finally {
+        setLoadingPhoto(false);
+      }
+    };
+
+    fetchPhoto();
+  }, [user]);
+
+  // ===============================
+  // MENU CONFIG
+  // ===============================
   const menuItems = [
     {
       id: 'dashboard',
@@ -59,18 +103,40 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
     }
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
+  const filteredMenuItems = menuItems.filter(item =>
     item.roles.includes(user?.role || '')
   );
 
+  // ===============================
+  // RENDER
+  // ===============================
   return (
     <div className="w-64 bg-white shadow-lg h-full flex flex-col">
-      <div className="p-6 border-b">
-        <h2 className="text-xl font-bold text-gray-800">Attendance System</h2>
-        <p className="text-sm text-gray-600 mt-1">{user?.fullName}</p>
-        <p className="text-xs text-brand-600 font-medium">{user?.role}</p>
+      {/* HEADER */}
+      <div className="p-6 border-b flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center">
+          {!loadingPhoto && profilePhoto ? (
+            <img
+              src={`data:image/jpeg;base64,${profilePhoto}`}
+              alt="Profile"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User className="w-6 h-6 text-gray-500" />
+          )}
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-gray-800">
+            {user?.fullName}
+          </p>
+          <p className="text-xs text-brand-600 font-medium">
+            {user?.role}
+          </p>
+        </div>
       </div>
-      
+
+      {/* MENU */}
       <nav className="flex-1 p-4">
         <div className="space-y-2">
           {filteredMenuItems.map((item) => {
@@ -78,10 +144,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
             return (
               <Button
                 key={item.id}
-                variant={currentPage === item.id ? "default" : "ghost"}
+                variant={currentPage === item.id ? 'default' : 'ghost'}
                 className={`w-full justify-start h-11 ${
-                  currentPage === item.id 
-                    ? 'bg-brand-500 text-white hover:bg-brand-600' 
+                  currentPage === item.id
+                    ? 'bg-brand-500 text-white hover:bg-brand-600'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
                 onClick={() => onPageChange(item.id)}
@@ -93,7 +159,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
           })}
         </div>
       </nav>
-      
+
+      {/* LOGOUT */}
       <div className="p-4 border-t">
         <Button
           variant="ghost"
